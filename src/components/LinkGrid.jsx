@@ -199,7 +199,7 @@ const LinkGrid = ({ isDashboardCard = false }) => {
         )}
         {isDashboardCard && links.length > cardLimit && (
             <div className="text-center mt-4">
-                <Link to="/quick-links">
+                <Link to="/app/quick-links">
                     <Button variant="outline">View all {links.length} links</Button>
                 </Link>
             </div>
