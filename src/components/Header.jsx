@@ -34,8 +34,8 @@ const Header = ({ isAuthPage = false }) => {
   const [profile, setProfile] = useState(null);
 
   // Split nav items for responsive header
-  const mainNavItems = navItems.slice(0, 5);
-  const moreNavItems = navItems.slice(5);
+  const mainNavItems = navItems.slice(0, 7);
+  const moreNavItems = navItems.slice(7);
 
   useEffect(() => {
     const down = (e) => {
