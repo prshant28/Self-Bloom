@@ -125,7 +125,7 @@ const Header = ({ isAuthPage = false }) => {
   return (
     <>
       <motion.header 
-        className="fixed top-0 left-0 right-0 bg-background/80 backdrop-blur-md p-3 z-50 border-b border-border"
+        className="fixed top-0 left-0 right-0 bg-background/95 backdrop-blur-sm p-3 z-40 border-b border-border"
         initial={{ y: -100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
       >
@@ -163,7 +163,7 @@ const Header = ({ isAuthPage = false }) => {
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="flex items-center p-3 rounded-lg transition-colors hover:bg-accent">
+                        <Button variant="ghost" className="flex items-center p-3 rounded-lg transition-colors hover:bg-accent relative z-50">
                           <MoreHorizontal size={20} />
                         </Button>
                       </DropdownMenuTrigger>
@@ -172,7 +172,7 @@ const Header = ({ isAuthPage = false }) => {
                       <p>More</p>
                     </TooltipContent>
                   </Tooltip>
-                  <DropdownMenuContent align="start">
+                  <DropdownMenuContent align="start" className="z-[60]">
                     {moreNavItems.map(item => (
                       <DropdownMenuItem key={item.to} onClick={() => navigate(item.to)}>
                         <item.icon className="mr-2 h-4 w-4" />
@@ -196,14 +196,14 @@ const Header = ({ isAuthPage = false }) => {
 
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                    <Button variant="ghost" className="relative h-8 w-8 rounded-full z-50">
                         <Avatar className="h-8 w-8">
                             <AvatarImage src={profile?.avatar_url || ''} alt={profile?.username || 'User'} />
                             <AvatarFallback>{profile?.username?.[0]?.toUpperCase() || 'U'}</AvatarFallback>
                         </Avatar>
                     </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
+                <DropdownMenuContent align="end" className="z-[60]">
                     <DropdownMenuLabel>My Account</DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => navigate('/app/settings')}>
