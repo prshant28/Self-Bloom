@@ -1,186 +1,226 @@
-import path from 'node:path';
-import react from '@vitejs/plugin-react';
-import { createLogger, defineConfig } from 'vite';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { motion } from 'framer-motion';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
+import { supabase } from '@/lib/customSupabaseClient';
+import { useToast } from '@/components/ui/use-toast';
+import { Button } from '@/components/ui/button';
+import { Plus, Settings } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
-const isDev = process.env.NODE_ENV !== 'production';
-let inlineEditPlugin, editModeDevPlugin;
+import FinancialOverview from '@/components/finance/FinancialOverview';
+import Charts from '@/components/finance/Charts';
+import IncomeIdeas from '@/components/finance/IncomeIdeas';
+import Wishlist from '@/components/finance/Wishlist';
+import TransactionModal from '@/components/finance/TransactionModal';
+import WishlistModal from '@/components/finance/WishlistModal';
+import IdeaModal from '@/components/finance/IdeaModal';
+import FinanceSettingsModal from '@/components/finance/FinanceSettingsModal';
+import CategoryManager from '@/components/CategoryManager';
 
-if (isDev) {
-	inlineEditPlugin = (await import('./plugins/visual-editor/vite-plugin-react-inline-editor.js')).default;
-	editModeDevPlugin = (await import('./plugins/visual-editor/vite-plugin-edit-mode.js')).default;
-}
+const FinanceTrackerPage = () => {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  const [transactions, setTransactions] = useState([]);
+  const [wishlist, setWishlist] = useState([]);
+  const [incomeIdeas, setIncomeIdeas] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [isTransactionModalOpen, setTransactionModalOpen] = useState(false);
+  const [isWishlistModalOpen, setWishlistModalOpen] = useState(false);
+  const [isIdeaModalOpen, setIdeaModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [editingIdea, setEditingIdea] = useState(null);
+  const [preferredCurrency, setPreferredCurrency] = useState('USD');
+  const [isSettingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [itemToLog, setItemToLog] = useState(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const [isEditingIdeaList, setIsEditingIdeaList] = useState(false);
+  const [editedIdeaTitle, setEditedIdeaTitle] = useState('');
+  const [editingIdeaId, setEditingIdeaId] = useState(null);
+  const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
 
-const configHorizonsViteErrorHandler = `
-const observer = new MutationObserver((mutations) => {
-	for (const mutation of mutations) {
-		for (const addedNode of mutation.addedNodes) {
-			if (
-				addedNode.nodeType === Node.ELEMENT_NODE &&
-				(
-					addedNode.tagName?.toLowerCase() === 'vite-error-overlay' ||
-					addedNode.classList?.contains('backdrop')
-				)
-			) {
-				handleViteOverlay(addedNode);
-			}
-		}
-	}
-});
+  const fetchData = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    const [transactionsRes, wishlistRes, profileRes, ideasRes] = await Promise.all([
+      supabase.from('transactions').select('*').eq('user_id', user.id).order('transaction_date', { ascending: false }),
+      supabase.from('wishlist_items').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
+      supabase.from('user_profiles').select('preferred_currency').eq('id', user.id).single(),
+      supabase.from('income_ideas').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
+    ]);
 
-observer.observe(document.documentElement, {
-	childList: true,
-	subtree: true
-});
+    if (transactionsRes.error) toast({ title: 'Error fetching transactions', variant: 'destructive' });
+    else setTransactions(transactionsRes.data || []);
 
-function handleViteOverlay(node) {
-	if (!node.shadowRoot) {
-		return;
-	}
+    if (wishlistRes.error) toast({ title: 'Error fetching wishlist', variant: 'destructive' });
+    else setWishlist(wishlistRes.data || []);
+    
+    if (ideasRes.error) toast({ title: 'Error fetching income ideas', variant: 'destructive' });
+    else setIncomeIdeas(ideasRes.data || []);
 
-	const backdrop = node.shadowRoot.querySelector('.backdrop');
+    if (profileRes.data) setPreferredCurrency(profileRes.data.preferred_currency || 'USD');
+    
+    setLoading(false);
+  }, [user, toast]);
 
-	if (backdrop) {
-		const overlayHtml = backdrop.outerHTML;
-		const parser = new DOMParser();
-		const doc = parser.parseFromString(overlayHtml, 'text/html');
-		const messageBodyElement = doc.querySelector('.message-body');
-		const fileElement = doc.querySelector('.file');
-		const messageText = messageBodyElement ? messageBodyElement.textContent.trim() : '';
-		const fileText = fileElement ? fileElement.textContent.trim() : '';
-		const error = messageText + (fileText ? ' File:' + fileText : '');
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
-		window.parent.postMessage({
-			type: 'horizons-vite-error',
-			error,
-		}, '*');
-	}
-}
-`;
+  const handleDelete = async (table, id) => {
+    const { error } = await supabase.from(table).delete().eq('id', id);
+    if (error) toast({title: "Error deleting item", variant: 'destructive'});
+    else {
+      toast({title: "🗑️ Item deleted"});
+      fetchData();
+    }
+  };
 
-const configHorizonsRuntimeErrorHandler = `
-window.onerror = (message, source, lineno, colno, errorObj) => {
-	const errorDetails = errorObj ? JSON.stringify({
-		name: errorObj.name,
-		message: errorObj.message,
-		stack: errorObj.stack,
-		source,
-		lineno,
-		colno,
-	}) : null;
+  const markAsObtained = async (item) => {
+    const {error} = await supabase.from('wishlist_items').update({status: 'obtained'}).eq('id', item.id);
+    if(error) {
+      toast({title: "Error updating item", variant: 'destructive'});
+    } else {
+      toast({title: "🎉 Congrats on your new item!"});
+      setItemToLog(item);
+      fetchData();
+    }
+  };
 
-	window.parent.postMessage({
-		type: 'horizons-runtime-error',
-		message,
-		error: errorDetails
-	}, '*');
+  const handleLogExpense = () => {
+    if(!itemToLog) return;
+    setTransactionModalOpen(true);
+  }
+
+  const updateIdeaStatus = async (id, status) => {
+    const { error } = await supabase.from('income_ideas').update({ status }).eq('id', id);
+    if(error) toast({title: "Error updating idea", variant: "destructive"});
+    else {
+      toast({title: `💡 Idea status updated!`});
+      fetchData();
+    }
+  };
+  
+  const convertToGoal = (idea) => {
+    navigate('/app/goals', { state: { newGoalFromIdea: { ...idea } } });
+  };
+
+  const handleUpdateIdeaTitle = async () => {
+    if (!editedIdeaTitle.trim() || !editingIdeaId) return;
+    const { error } = await supabase.from('income_ideas').update({ title: editedIdeaTitle }).eq('id', editingIdeaId);
+    if (error) {
+      toast({ title: 'Error updating idea', variant: 'destructive' });
+    } else {
+      toast({ title: 'Idea updated!' });
+      fetchData();
+    }
+    setEditingIdeaId(null);
+    setEditedIdeaTitle('');
+  };
+  
+  const totalIncome = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + parseFloat(t.amount), 0);
+  const totalExpense = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + parseFloat(t.amount), 0);
+
+  const existingCategories = useMemo(() => {
+    return transactions.reduce((acc, t) => {
+      if (!acc[t.type]) acc[t.type] = [];
+      if (t.category && !acc[t.type].includes(t.category)) {
+        acc[t.type].push(t.category);
+      }
+      return acc;
+    }, { income: [], expense: [] });
+  }, [transactions]);
+
+  return (
+    <div className="space-y-8">
+      <TransactionModal 
+        isOpen={isTransactionModalOpen} 
+        setIsOpen={setTransactionModalOpen} 
+        onSuccess={fetchData} 
+        currency={preferredCurrency}
+        existingCategories={existingCategories}
+        prefillData={itemToLog ? { 
+          type: 'expense', 
+          description: itemToLog.name, 
+          category: itemToLog.category,
+          amount: itemToLog.price
+        } : null}
+        onClose={() => setItemToLog(null)}
+      />
+      <WishlistModal 
+        isOpen={isWishlistModalOpen || !!editingItem} 
+        setIsOpen={() => { setWishlistModalOpen(false); setEditingItem(null); }} 
+        onSuccess={fetchData} 
+        item={editingItem} 
+      />
+      <IdeaModal 
+        isOpen={isIdeaModalOpen || !!editingIdea} 
+        setIsOpen={() => { setIdeaModalOpen(false); setEditingIdea(null); }} 
+        onSuccess={fetchData} 
+        idea={editingIdea} 
+      />
+      <FinanceSettingsModal
+        isOpen={isSettingsModalOpen}
+        setIsOpen={setSettingsModalOpen}
+        preferredCurrency={preferredCurrency}
+        setPreferredCurrency={setPreferredCurrency}
+        transactions={transactions}
+        onCategoriesUpdate={fetchData}
+      />
+
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-wrap gap-4 justify-between items-center">
+        <div>
+          <h1 className="font-display text-3xl md:text-4xl font-bold text-glow mb-2">Finance Management</h1>
+          <p className="text-md md:text-lg opacity-75">Your personal command center for financial wellness.</p>
+        </div>
+        <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setSettingsModalOpen(true)} size="sm"><Settings className="md:mr-2 h-4 w-4" /><span className="hidden md:inline">Settings</span></Button>
+            <Button onClick={() => setTransactionModalOpen(true)} size="sm"><Plus className="md:mr-2 h-4 w-4" /><span className="hidden md:inline">Add Transaction</span></Button>
+        </div>
+      </motion.div>
+      
+      <FinancialOverview 
+        totalIncome={totalIncome}
+        totalExpense={totalExpense}
+        currency={preferredCurrency}
+      />
+      
+      <Charts 
+        transactions={transactions}
+        currency={preferredCurrency}
+      />
+      
+      <IncomeIdeas 
+        ideas={incomeIdeas}
+        onAdd={() => setIdeaModalOpen(true)}
+        onEdit={(idea) => setEditingIdea(idea)}
+        onStatusChange={updateIdeaStatus}
+        onConvertToGoal={convertToGoal}
+        showArchived={showArchived}
+        setShowArchived={setShowArchived}
+        onDelete={(id) => handleDelete('income_ideas', id)}
+        isEditing={isEditingIdeaList}
+        setIsEditing={setIsEditingIdeaList}
+        onUpdateTitle={handleUpdateIdeaTitle}
+        editedTitle={editedIdeaTitle}
+        setEditedTitle={setEditedIdeaTitle}
+        editingId={editingIdeaId}
+        setEditingId={setEditingIdeaId}
+      />
+
+      <Wishlist 
+        wishlist={wishlist}
+        onAdd={() => setWishlistModalOpen(true)}
+        onEdit={(item) => setEditingItem(item)}
+        onDelete={(id) => handleDelete('wishlist_items', id)}
+        onObtain={markAsObtained}
+        currency={preferredCurrency}
+        onLogExpense={handleLogExpense}
+        itemToLog={itemToLog}
+        setItemToLog={setItemToLog}
+      />
+    </div>
+  );
 };
-`;
 
-const configHorizonsConsoleErrroHandler = `
-const originalConsoleError = console.error;
-console.error = function(...args) {
-	originalConsoleError.apply(console, args);
-
-	let errorString = '';
-
-	for (let i = 0; i < args.length; i++) {
-		const arg = args[i];
-		if (arg instanceof Error) {
-			errorString = arg.stack || \`\${arg.name}: \${arg.message}\`;
-			break;
-		}
-	}
-
-	if (!errorString) {
-		errorString = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ');
-	}
-
-	window.parent.postMessage({
-		type: 'horizons-console-error',
-		error: errorString
-	}, '*');
-};
-`;
-
-const configWindowFetchMonkeyPatch = `
-const originalFetch = window.fetch;
-
-window.fetch = function(...args) {
-	const url = args[0] instanceof Request ? args[0].url : args[0];
-
-	// Skip WebSocket URLs
-	if (url.startsWith('ws:') || url.startsWith('wss:')) {
-		return originalFetch.apply(this, args);
-	}
-
-	return originalFetch.apply(this, args)
-		.then(async response => {
-			const contentType = response.headers.get('Content-Type') || '';
-
-			// Exclude HTML document responses
-			const isDocumentResponse =
-				contentType.includes('text/html') ||
-				contentType.includes('application/xhtml+xml');
-
-			if (!response.ok && !isDocumentResponse) {
-					const responseClone = response.clone();
-					const errorFromRes = await responseClone.text();
-					const requestUrl = response.url;
-					console.error(\`Fetch error from \${requestUrl}: \${errorFromRes}\`);
-			}
-
-			return response;
-		})
-		.catch(error => {
-			if (!url.match(/\.html?$/i)) {
-				console.error(error);
-			}
-
-			throw error;
-		});
-};
-`;
-
-console.warn = () => {};
-
-const logger = createLogger()
-const loggerError = logger.error
-
-logger.error = (msg, options) => {
-	if (options?.error?.toString().includes('CssSyntaxError: [postcss]')) {
-		return;
-	}
-
-	loggerError(msg, options);
-}
-
-export default defineConfig({
-	customLogger: logger,
-	plugins: [
-		...(isDev ? [inlineEditPlugin(), editModeDevPlugin()] : []),
-		react()
-	],
-	server: {
-		cors: true,
-		headers: {
-			'Cross-Origin-Embedder-Policy': 'credentialless',
-		},
-		allowedHosts: true,
-	},
-	resolve: {
-		extensions: ['.jsx', '.js', '.tsx', '.ts', '.json', ],
-		alias: {
-			'@': path.resolve(__dirname, './src'),
-		},
-	},
-	build: {
-		rollupOptions: {
-			external: [
-				'@babel/parser',
-				'@babel/traverse',
-				'@babel/generator',
-				'@babel/types'
-			]
-		}
-	}
-});
+export default FinanceTrackerPage;
