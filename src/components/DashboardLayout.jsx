@@ -20,6 +20,7 @@ import QuickLinksPage from '@/components/QuickLinksPage';
 import JournalPage from '@/pages/JournalPage';
 import FinanceTrackerPage from '@/pages/FinanceTrackerPage';
 import TemplatesPage from '@/pages/TemplatesPage';
+import SupportUsPage from '@/pages/SupportUsPage';
 import NotFoundPage from '@/pages/NotFoundPage';
 
 const DashboardLayout = () => {
@@ -87,6 +88,7 @@ const DashboardLayout = () => {
               <Route path="journal" element={<PageTransition><JournalPage /></PageTransition>} />
               <Route path="finance" element={<PageTransition><FinanceTrackerPage /></PageTransition>} />
               <Route path="templates" element={<PageTransition><TemplatesPage /></PageTransition>} />
+              <Route path="support" element={<PageTransition><SupportUsPage /></PageTransition>} />
               <Route path="*" element={<PageTransition><NotFoundPage /></PageTransition>} />
             </Routes>
           </AnimatePresence>

@@ -15,6 +15,7 @@ import TransactionModal from '@/components/finance/TransactionModal';
 import WishlistModal from '@/components/finance/WishlistModal';
 import IdeaModal from '@/components/finance/IdeaModal';
 import FinanceSettingsModal from '@/components/finance/FinanceSettingsModal';
+import CategoryManager from '@/components/CategoryManager';
 
 const FinanceTrackerPage = () => {
   const { user } = useAuth();
@@ -36,6 +37,8 @@ const FinanceTrackerPage = () => {
   const [isEditingIdeaList, setIsEditingIdeaList] = useState(false);
   const [editedIdeaTitle, setEditedIdeaTitle] = useState('');
   const [editingIdeaId, setEditingIdeaId] = useState(null);
+  const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
+  const [categoryManagerType, setCategoryManagerType] = useState('expense');
 
   const fetchData = useCallback(async () => {
     if (!user) return;
@@ -115,6 +118,25 @@ const FinanceTrackerPage = () => {
     setEditingIdeaId(null);
     setEditedIdeaTitle('');
   };
+
+  const openCategoryManager = (type) => {
+    setCategoryManagerType(type);
+    setIsCategoryManagerOpen(true);
+  };
+
+  const handleCategoriesUpdate = async (updatedCategories, action, item) => {
+    if (action === 'delete') {
+        const { error } = await supabase
+            .from('transactions')
+            .update({ category: null })
+            .eq('user_id', user.id)
+            .eq('category', item);
+        if (error) {
+            toast({ title: 'Error un-categorizing transactions', description: error.message, variant: 'destructive' });
+        }
+    }
+    fetchData();
+  };
   
   const totalIncome = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + parseFloat(t.amount), 0);
   const totalExpense = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + parseFloat(t.amount), 0);
@@ -173,6 +195,8 @@ const FinanceTrackerPage = () => {
         </div>
         <div className="flex gap-2">
             <Button variant="outline" onClick={() => setSettingsModalOpen(true)} size="sm"><Settings className="md:mr-2 h-4 w-4" /><span className="hidden md:inline">Settings</span></Button>
+            <Button variant="outline" onClick={() => openCategoryManager('expense')} size="sm">📁 Expense</Button>
+            <Button variant="outline" onClick={() => openCategoryManager('income')} size="sm">📁 Income</Button>
             <Button onClick={() => setTransactionModalOpen(true)} size="sm"><Plus className="md:mr-2 h-4 w-4" /><span className="hidden md:inline">Add Transaction</span></Button>
         </div>
       </motion.div>
@@ -216,6 +240,16 @@ const FinanceTrackerPage = () => {
         onLogExpense={handleLogExpense}
         itemToLog={itemToLog}
         setItemToLog={setItemToLog}
+      />
+
+      <CategoryManager
+        isOpen={isCategoryManagerOpen}
+        setIsOpen={setIsCategoryManagerOpen}
+        title={`Manage ${categoryManagerType.charAt(0).toUpperCase() + categoryManagerType.slice(1)} Categories`}
+        description={`Add or remove categories for your ${categoryManagerType} transactions.`}
+        existingItems={existingCategories[categoryManagerType] || []}
+        onUpdate={handleCategoriesUpdate}
+        itemTypeLabel="category"
       />
     </div>
   );

@@ -12,6 +12,7 @@ const moreNavItems = [
   { to: '/app/progress', icon: BarChart3, label: 'Progress' },
   { to: '/app/achievements', icon: Trophy, label: 'Achievements' },
   { to: '/app/knowledge-hub', icon: BookOpen, label: 'Knowledge Hub' },
+  { to: '/app/support', icon: BookHeart, label: 'Support Us' },
   { to: '/app/settings', icon: SettingsIcon, label: 'Settings' },
 ];
 
